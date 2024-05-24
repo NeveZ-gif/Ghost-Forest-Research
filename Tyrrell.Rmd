@@ -29,9 +29,7 @@ table.kable, table.table {
 if(!require(pacman)){install.packages("pacman"); library(pacman)}
 p_load(tidyverse, sf, ggplot2, units)
 
-setwd("C:/Users/ztyuu/Documents/Spring2024/Research/Ghost Forest")
-
-Tyrrell.sf <- st_read("Tyrrell_TyrrellParcelViewer/TaxParcel.shp")
+Tyrrell.sf <- st_read("data/Tyrrell/TaxParcel.shp")
 ```
 
 # Processing Parcel Records

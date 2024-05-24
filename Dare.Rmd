@@ -29,9 +29,7 @@ table.kable, table.table {
 if(!require(pacman)){install.packages("pacman"); library(pacman)}
 p_load(tidyverse, sf, ggplot2, units)
 
-setwd("C:/Users/ztyuu/Documents/Spring2024/Research/Ghost Forest")
-
-Dare.sf <- st_read("DareCounty_DareCountyNC/gis_polygons.shp")
+Dare.sf <- st_read("data/Dare/gis_polygons.shp")
 ```
 # Data Cleasing
 

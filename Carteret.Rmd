@@ -29,9 +29,7 @@ table.kable, table.table {
 if(!require(pacman)){install.packages("pacman"); library(pacman)}
 p_load(tidyverse, sf, units)
 
-setwd("C:/Users/ztyuu/Documents/Spring2024/Research/Ghost Forest")
-
-Carteret.sf <- st_read("Carteret_CarteretCountyInfoTechDept/Tax_Parcel_Data.shp")
+Carteret.sf <- st_read("data/Carteret/Tax_Parcel_Data.shp")
 ```
 
 # Processing Parcel Records
