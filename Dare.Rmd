@@ -1,0 +1,253 @@
+---
+title: "Dare"
+author: "Tianyu Zhang"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    keep_md: yes
+    toc: yes
+    theme: flatly
+    toc_float: yes
+    code_folding: hide
+    number_sections: no
+---
+
+<style>
+.kable thead tr th, .table thead tr th {
+  text-align: left !important;}
+table.kable, table.table {
+  width: 100% !important;}
+  body {
+  line-height: 1.6;
+  font-size: 16px
+}
+</style>
+
+# Load Data
+
+```{r}
+if(!require(pacman)){install.packages("pacman"); library(pacman)}
+p_load(tidyverse, sf, ggplot2, units)
+
+setwd("C:/Users/ztyuu/Documents/Spring2024/Research/Ghost Forest")
+
+Dare.sf <- st_read("DareCounty_DareCountyNC/gis_polygons.shp")
+```
+# Data Cleasing
+
+## Eliminating real duplicates by ownership info
+
+Duplicates are most often caused by co-existence of primary (P) and secondary owners (S), variable = ownership. By double-checking with Dare County's recent tax certification reports, the primary owner is the person associated with current tax duties.
+
+Filtering all parcel records where ownership = P.
+
+```{r}
+Dare.sf <- Dare.sf %>%  
+  filter(ownership == "P")
+```
+
+## Check for pin Duplicates
+
+The pin duplicates fully encompass geographical duplicates.
+
+```{r check pin14 duplicates}
+D.pin.asdf <- Dare.sf %>%
+  as_tibble()%>%
+  group_by(pin) %>% 
+  tally() %>% 
+  filter(n>1) %>% 
+  select(-n) %>% 
+  inner_join(Dare.sf, by = "pin") #used pin instead of pin14 because pin14 disaggregate to unit level
+
+#D.geo.asdf <- Dare.sf %>%
+  #as_tibble()%>%
+  #group_by(geometry) %>% 
+  #tally() %>% 
+  #filter(n>1) %>% 
+  #select(-n) %>% 
+  #inner_join(Dare.sf, by = "geometry")
+
+#D.asdf <- D.geo.asdf %>% 
+  #full_join(D.pin.asdf) 
+```
+
+## Check for real *geographic* duplicates
+
+All geographical duplicates are encompassed by pin duplicates. Several thousands of real geographic duplicates are attributed by multiple home owners and leaseholders associated with the same parcel (unique characteristic of Dare). Following steps are taken:
+
+- Created a ownership dataset to identifying the prime landowner (eg. landlord, home owner association, non-lease holders, government) under whom the "landval" is registered. Extracting this ownership info associated with each parcel.
+
+- Created a value dataset to identify complete values associated with each parcel. (summing up "bldgval" and "miscval")
+
+- Joining the ownership and value dataset.
+
+**Note 1**: I had some confusion regarding how to calculate the land value for each parcel and found online references suggesting units like condo do not have individual land values, and that for tax purposes only, land value may be calculated as a portion of the total building value. Hence in the following process, I extracted the land value associated with the primary record as the total land value of each parcel. 
+
+**Note 2**: Because all units are aggregated to the same parcel, the following step fails to recognize all individual homeowners/lease holders associated with each parcel, it is safe to assume there is always a mix of NC and non-NC stakeholders associated with built complexes like condominiums or retails. For future improvement, we can further track the distribution of these homeowner/lease holders origins.
+
+```{r}
+D.realdup <- D.pin.asdf %>%
+  as_tibble()%>%
+  group_by(geometry) %>% 
+  tally() %>% 
+  filter(n>1) %>% 
+  select(-n) %>% 
+  inner_join(Dare.sf)
+
+asdf <- D.realdup %>% 
+  group_by(geometry) %>% 
+  tally()
+
+#creating an owner dataset
+D.realdup.CambridgeCondo <- D.realdup %>% 
+  as_tibble() %>% 
+  filter(pin == 988306481238) %>% 
+  filter(grepl("OWNERS", firstn, ignore.case = TRUE))
+
+D.realdup.MC <- D.realdup %>% 
+  as_tibble() %>% 
+  filter(pin != 988306481238) %>% 
+  filter(grepl("MASTER CARD", puse, ignore.case = TRUE)) %>%
+  group_by(geometry) %>%
+  slice_max(order_by = totval, with_ties = FALSE) %>%
+  ungroup()
+
+D.realdup.Land <- D.realdup %>% 
+  as_tibble() %>% 
+  anti_join(D.realdup.MC, by = 'geometry') %>% 
+  filter(pin != 988306481238) %>% 
+  filter(landval != 0) %>% 
+  filter(!str_detect(pin14, "[a-zA-Z]")) %>%
+  group_by(geometry) %>%
+  slice_max(order_by = totval, with_ties = FALSE) %>%
+  ungroup()
+
+#for approximately 20 parcels with multiple cards? selected larger Card number
+#sampled smaller card numbers do not match with existing deed records, assuming they are expired.
+  
+D.realdup.newRec <- D.realdup %>% 
+  as_tibble() %>% 
+  anti_join(D.realdup.MC, by = 'geometry') %>% 
+  filter(pin != 988306481238) %>% 
+  filter(landval != 0) %>% 
+  filter(str_detect(pin14, "[a-zA-Z]")) %>% 
+  mutate(Rec = str_sub(pin14, -1)) %>% 
+  group_by(pin) %>%
+  slice_max(order_by = Rec, with_ties = FALSE) %>%
+  ungroup() %>% 
+  select(-Rec)
+
+D.realdup.owner <- rbind(D.realdup.CambridgeCondo, D.realdup.MC, D.realdup.Land, D.realdup.newRec)
+
+D.realdup.owner <- D.realdup.owner %>% 
+  select(-c("bldgval", "miscval"))
+
+# Creating a value dataset
+D.realdup.value <- D.realdup %>% 
+  as_tibble() %>%
+  filter(!grepl("BOAT SLIP CONDOMINIUM", puse, ignore.case = TRUE)) %>%
+  select(bldgval, miscval, geometry) %>% 
+  group_by(geometry) %>% 
+  summarize(bldgval = sum(bldgval),
+            miscval = sum(miscval))
+
+# Binding ownership and value dataset
+D.realdup.new <- D.realdup.owner %>% 
+  inner_join(D.realdup.value, by = "geometry")
+```
+
+### Adding a special case
+
+Conducted additional test to locate the Boat Slip Condominium records, which do not contain identifiers used in the previous steps. Per online GIS tool confirmation, the first row records the 2023 tax payer.
+
+```{r}
+D.realdup.spec <- D.realdup %>% 
+  as_tibble() %>% 
+  filter(pin == 958520715714) %>% 
+  slice(1)
+
+D.realdup.new <- rbind(D.realdup.new, D.realdup.spec)%>% 
+  mutate(Duped_Value = "0")
+```
+
+## Check for fake *pin* duplicates
+
+The only parcels qualifying as fake duplicates is 0 Hwy 64/264 Manns Harbor, NC 27953, multiple vacant land collectively owned by the Federal government.All parcels are unique but contains duplicated information.
+
+```{r}
+D.fakedup <- D.pin.asdf %>% 
+  as_tibble()%>%
+  group_by(geometry) %>% 
+  tally() %>% 
+  filter(n==1) %>% 
+  select(-n) %>% 
+  inner_join(Dare.sf, by = "geometry") %>%
+  st_as_sf() %>% 
+  mutate(Acres = st_area(.),
+         Acres = set_units(x = Acres, value = "acres"),
+         Duped_Value = "1")
+
+#used the following code to find out the areas do not overlap
+D.fakedupmax <- D.fakedup %>% 
+  filter(Acres == max(Acres))
+
+D.fakedupothers <- D.fakedup %>% 
+  filter(Acres != max(Acres))
+
+ggplot()+
+  geom_sf(data = D.fakedupmax %>% st_as_sf(), color = "black")+
+  geom_sf(data = D.fakedupothers %>% st_as_sf(), color = "red")
+```
+
+## Check for unique records
+
+```{r}
+D.unique <- Dare.sf %>% 
+  as_tibble() %>% 
+  anti_join(D.pin.asdf) %>% 
+  mutate(Duped_Value = "0")
+```
+
+# Joining Cleaned Datasets
+
+```{r}
+DareMaster <- rbind(D.unique, D.fakedup, D.realdup.new)
+```
+
+```{r}
+DareMaster <- DareMaster %>%
+  select(pin, 
+         landval, bldgval, miscval,  
+         owner1, owner2,
+         mailaddr1, mailcity, mailstate, mailzip, 
+         Duped_Value, geometry)
+
+DareMaster <- DareMaster %>% 
+  rename(PIN = pin, 
+         Land_Val = landval, Struc_Val = bldgval, Other_Val = miscval, 
+         Owner1 = owner1, Owner2 = owner2, Mail_St = mailaddr1, Mail_City = mailcity, Mail_State = mailstate,
+         Mail_ZIP = mailzip)
+
+DareMaster <- DareMaster %>%
+  st_as_sf() %>% 
+  mutate(PIN = as.character(PIN), 
+         Land_Val = as.numeric(Land_Val),
+         Struc_Val = as.numeric(Struc_Val),
+         Other_Val = as.numeric(Other_Val),
+         Total_Val = Land_Val + Struc_Val + Other_Val,
+         Acres = st_area(.),
+         Acres = set_units(x = Acres, value = "acres"),
+         Mail_ZIP = as.character(Mail_ZIP),
+         Parcel_County = "Dare",
+         ID = row_number(),
+         ID = paste0("D", sprintf("%05d", ID)))
+```
+
+# Exporting File
+
+```{r}
+if (file.exists("DareMaster.shp")) {
+  file.remove("DareMaster.shp")
+}
+st_write(DareMaster, "DareMaster.shp", delete.dsn = TRUE)
+```

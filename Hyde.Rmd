@@ -1,0 +1,314 @@
+---
+title: "Hyde"
+author: "Tianyu Zhang"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    keep_md: yes
+    toc: yes
+    theme: flatly
+    toc_float: yes
+    code_folding: hide
+    number_sections: no
+---
+
+<style>
+.kable thead tr th, .table thead tr th {
+  text-align: left !important;}
+table.kable, table.table {
+  width: 100% !important;}
+  body {
+  line-height: 1.6;
+  font-size: 16px
+}
+</style>
+
+# Load Data
+
+```{r}
+if(!require(pacman)){install.packages("pacman"); library(pacman)}
+p_load(tidyverse, sf, units)
+
+setwd("C:/Users/ztyuu/Documents/Spring2024/Research/Ghost Forest")
+
+Hyde.sf <- st_read("HydeCounty_NCLocalGISDataArchive/Parcels.shp")
+
+Hyde.sf <- Hyde.sf %>%
+  mutate(PIN = gsub("-", "", MAP_BLOCK_)) %>%
+  select(-MAP_BLOCK_) %>% 
+  mutate(area = st_area(Hyde.sf)) %>% 
+  mutate(area = set_units(x = area, value = "acres"))
+
+Hyde.values <- read.csv("HydeCounty_NCLocalGISDataArchive/2023 Parcel Values.csv") %>% 
+  select(-REID) %>% 
+  mutate(Pin.Num = as.character(Pin.Num))
+```
+
+# Check for Duplicates in both Hyde.sf and Hyde.values
+
+Duplicate check is conducted for both Hyde shapefile and Hyde parcel value csv.
+
+```{r}
+H.asdf <- Hyde.sf %>%
+  as_tibble()%>%
+  group_by(PIN) %>% 
+  tally() %>% 
+  filter(n>1)
+
+H.v.asdf <- Hyde.values %>% 
+  as_tibble()%>%
+  group_by(Pin.Num) %>% 
+  tally() %>% 
+  filter(n>1)
+```
+
+# Processing unique parcel records
+
+```{r Filtering parcel records}
+H.dups <- H.asdf %>% 
+  select(-n) %>% 
+  left_join(Hyde.sf, by = "PIN")
+
+H.unique <- Hyde.sf %>%
+  anti_join(H.dups, by = "PIN")
+```
+
+Used PIN-area to identify true/fake duplicates:
+
+- `fake duplicates`: unique PIN-area
+
+- `true duplicates`: repeated PIN-area
+
+### Extracting fake duplicates
+
+```{r}
+#identify PIN associated with all fake duplicates
+H.fakedup.PIN <- H.dups %>% 
+  group_by(PIN, area) %>% 
+  tally() %>% 
+  filter(n==1) %>% 
+  distinct(PIN)
+
+#isolating spatial information for fake duplicates
+H.fakedup <- H.fakedup.PIN %>%
+  left_join(Hyde.sf, by = "PIN") %>% 
+  st_as_sf()
+```
+
+### Extracting unique real duplicates
+
+```{r}
+H.realdup <- H.dups %>% 
+  anti_join(H.fakedup, by = "PIN") %>% 
+  arrange(desc(RECORD)) %>%
+  distinct(PIN, .keep_all = TRUE) %>% 
+  st_as_sf()
+```
+
+# Processing unique value records
+
+Filtering in-use value records: All current parcel value on Hyde County GIS has Land.Value greater than zero. Pin  = 9999999999 are null records.
+Note: parcels with excessive duplicates (eg. 7637970147 is likely due to group development)
+
+```{r Filtering in-use value records}
+H.values <- Hyde.values %>% 
+  filter(Land.Value > 0) %>% 
+  filter(Pin.Num != "9999999999") %>% 
+  rename(PIN = Pin.Num)
+
+#since the regression does not take tax exemption into account, removed two variables
+H.values <- H.values %>% 
+  select(-Deferred...Exempt.Value, -Total.Taxable.Value)
+```
+
+Isolating all records for parcels duplicated by PIN number.
+
+```{r}
+H.values.dup <- H.values %>% 
+  group_by(PIN) %>% 
+  tally() %>% 
+  filter(n>1) %>% 
+  select(-n) %>% 
+  left_join(H.values, by = "PIN")
+```
+
+## Aggregating values for fake duplicates
+
+For fake duplicates, I calculated the total value associated with each PIN, and marked these values as duplicated values.
+
+```{r}
+H.v.fakedup <- H.values.dup %>% 
+  right_join(H.fakedup.PIN, by = "PIN") %>% 
+  group_by(PIN) %>% 
+  summarize(Land.Value = sum(Land.Value),
+            Bldg.Value = sum(Bldg.Value),
+            Misc.Imprv.Value = sum(Misc.Imprv.Value))
+```
+
+## Identifying values for real duplicates
+
+Identifying unique values for the real duplicates.Given no other variables exist to determine which record is currently in use for the real duplicates, a manual check is conducted in Excel
+
+Please note that there are discrepencies between the 2023 parcel value csv and GIS portal. The polished dataset tries to match both sources by records sharing the same land value, and keep other values intact. However, in records where no land value is matched, the polished dataset replaces the 2023 record with GIS portal data.
+
+```{r}
+#H.v.realdup <- H.values.dup %>% 
+  #anti_join(H.v.fakedup, by = "PIN")
+
+#exported H.v.realdup.all to csv for manual processing
+H.v.realdup <- read.csv("HydeCounty_NCLocalGISDataArchive/HydeValues_realduplicates.csv") %>% 
+  rename(PIN = Pin.Num) %>% 
+  mutate(PIN = as.character(PIN)) %>% 
+  select(-Deferred...Exempt.Value, -Total.Taxable.Value)
+```
+
+## Identifying truly unique values
+
+```{r}
+H.values.unique <- H.values %>% 
+  anti_join(H.v.fakedup, by = "PIN") %>% 
+  anti_join(H.v.realdup, by = "PIN")
+```
+
+# Joining geographic and value datasets
+
+## Combining distict spatial files
+
+Combining all three shapefiles from previous step: H.unique, H.fakedup, H.realdup (cleaned)
+
+```{r}
+H.fakedup <- H.fakedup %>% 
+  mutate(Duped_Value = "1")
+
+H.unique <- H.unique %>% 
+  mutate(Duped_Value = "0")
+
+H.realdup <- H.realdup %>% 
+  mutate(Duped_Value = "0")
+
+Hyde.new.sf <- rbind(H.unique, H.fakedup, H.realdup) %>%
+  select(PIN, NAME1, NAME2, ADDRESS1, CITYSTZIP, Duped_Value) %>% 
+  filter(!is.na(PIN))
+```
+
+## Combining distinct value dataset
+
+```{r}
+Hyde.new.values <- rbind(H.values.unique, H.v.fakedup, H.v.realdup)
+```
+
+## Match values to shapefiles
+
+```{r}
+HydeMaster <- left_join(Hyde.new.sf, Hyde.new.values, by = "PIN")
+```
+
+# Processing Master Shapefile
+
+## Renmaing Variables
+
+Defining a method to extract specific geographic info from the CITYSTZIP column:
+
+```{r}
+extract_comorsp <- function(text) {
+  if (is.na(text) || text == "") {
+    return(NA_character_)
+  }
+  result <- str_extract(text, "^[^,]+")
+  if (!str_detect(text, ",")) {
+    result <- str_extract(text, "^[^\\s]+")
+  } 
+  return(result)
+}
+```
+
+```{r}
+HydeMaster.1 <- HydeMaster %>% 
+  filter(str_detect(CITYSTZIP, "\\b\\d{5}\\b") & str_detect(CITYSTZIP, "[a-zA-Z]")) %>% 
+  mutate(City = map_chr(CITYSTZIP, extract_comorsp), #captured majority of city
+         ZIP = str_extract(CITYSTZIP, "\\d+"), #captured first string of numbers: zip
+         St = str_remove(CITYSTZIP, paste0("^", City)),
+         St = str_replace(St, paste0(ZIP, "$"), ""),
+         St = str_remove(St, ","),
+         St = str_remove(St, "\\."),
+         St = str_remove(St, "\\."),
+         St = str_remove_all(St, "\\d+"),
+         St = str_remove(St, "-"),
+         St = str_remove_all(St, "\\s+")) 
+
+#5.17 check-in feedback:
+#use the Mail_St column to split again
+HydeMaster.2 <- HydeMaster %>% 
+  filter(!str_detect(CITYSTZIP, "\\b\\d{5}\\b") | !str_detect(CITYSTZIP, "[a-zA-Z]") | 
+           is.na(CITYSTZIP)) %>% 
+  mutate(
+    ZIP = if_else(str_detect(CITYSTZIP, "\\b\\d{5}\\b"), 
+                  str_extract(CITYSTZIP, "\\b\\d{5}\\b"), 
+                  NA_character_),
+    St = if_else(str_detect(CITYSTZIP, "NC") | str_detect(ADDRESS1, "NC")| 
+                 str_detect(ADDRESS1, "\\bN\\s*\\.?\\s*C\\b"),
+                 "NC", 
+                 NA_character_),
+    St = if_else(!is.na(ZIP) & is.na(St),
+                 str_extract(ADDRESS1, "\\b\\w{2}(?=\\W*$)"),
+                 St)
+  )
+
+#Manual process of adding in States
+HydeMaster.2 <- HydeMaster.2 %>% 
+  mutate(St = if_else(str_detect(ADDRESS1, "NEW YORK, NY 10029"), 
+                      "NY", 
+                      if_else(str_detect(ADDRESS1, "SAFETY HARBOR, FLORIDA"), 
+                              "FL", 
+                              if_else(str_detect(ADDRESS1, "MECHANICSBURG, PA 17050-"), 
+                                      "PA", 
+                                      if_else(str_detect(ADDRESS1, "NORFOLK, VA 23513"), 
+                                              "VA", 
+                                              NA_character_)))))
+
+#Combining differently processed dataset
+HydeMaster <- 
+  rbind(HydeMaster.1, HydeMaster.2 %>% mutate(City = NA_character_)) %>% 
+  select(-CITYSTZIP) %>% 
+  rename(Land_Val = Land.Value, Struc_Val = Bldg.Value, Other_Val = Misc.Imprv.Value, 
+         Owner1 = NAME1, Owner2 = NAME2, 
+         Mail_St = ADDRESS1, Mail_City = City, Mail_State = St,
+         Mail_ZIP = ZIP) %>% 
+  mutate(PIN = as.character(PIN), 
+         Land_Val = as.numeric(Land_Val),
+         Struc_Val = as.numeric(Struc_Val),
+         Other_Val = as.numeric(Other_Val),
+         Total_Val = Land_Val + Struc_Val + Other_Val,
+         Acres = st_area(.),
+         Acres = set_units(x = Acres, value = "acres"),
+         Mail_ZIP = as.character(Mail_ZIP),
+         Parcel_County = "Hyde",
+         ID = row_number(),
+         ID = paste0("H", sprintf("%05d", ID)))
+```
+
+## Final Check for Master Shapefile
+
+The final inspection suggests there is still one duplicated geometry in the Master Shapefile. Take a manual step to remove the record.
+
+```{r}
+HydeMaster.remove <- HydeMaster %>% 
+  as_tibble() %>% 
+  group_by(geometry) %>% 
+  tally() %>% 
+  filter(n > 1) %>% 
+  select(-n) %>% 
+  left_join(HydeMaster)
+
+#The two records are identical. Kept one of them.
+HydeMaster <- HydeMaster %>% 
+  distinct(geometry, .keep_all = TRUE)
+```
+# Exporting File
+
+```{r}
+if (file.exists("HydeMaster.shp")) {
+  file.remove("HydeMaster.shp")
+}
+st_write(HydeMaster, "HydeMaster.shp", delete.dsn = TRUE)
+```

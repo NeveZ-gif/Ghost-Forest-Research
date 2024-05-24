@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><MD_Metadata xmlns:gts="http://www.isotc211.org/2005/gts" xmlns:gco="http://www.isotc211.org/2005/gco" xmlns:xalan="http://xml.apache.org/xalan" xmlns:srv="http://www.isotc211.org/2005/srv" xmlns:gmx="http://www.isotc211.org/2005/gmx" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gml="http://www.opengis.net/gml" xmlns="http://www.isotc211.org/2005/gmd">
+    <fileIdentifier>
+        <gco:CharacterString>945c7ce68695442bb59a8d12e0139121</gco:CharacterString>
+    </fileIdentifier>
+    <characterSet>
+        <MD_CharacterSetCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#MD_CharacterSetCode" codeListValue="utf8" codeSpace="ISOTC211/19115">utf8</MD_CharacterSetCode>
+    </characterSet>
+    <hierarchyLevel>
+        <MD_ScopeCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#MD_ScopeCode" codeListValue="dataset" codeSpace="ISOTC211/19115">dataset</MD_ScopeCode>
+    </hierarchyLevel>
+    <hierarchyLevelName>
+        <gco:CharacterString>dataset</gco:CharacterString>
+    </hierarchyLevelName>
+    <contact>
+        <CI_ResponsibleParty>
+            <role>
+                <CI_RoleCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#CI_RoleCode" codeListValue="pointOfContact" codeSpace="ISOTC211/19115">pointOfContact</CI_RoleCode>
+            </role>
+        </CI_ResponsibleParty>
+    </contact>
+    <dateStamp>
+        <gco:Date>2017-11-21</gco:Date>
+    </dateStamp>
+    <metadataStandardName>
+        <gco:CharacterString>ISO 19139 Geographic Information - Metadata - Implementation Specification</gco:CharacterString>
+    </metadataStandardName>
+    <metadataStandardVersion>
+        <gco:CharacterString>2007</gco:CharacterString>
+    </metadataStandardVersion>
+    <identificationInfo>
+        <MD_DataIdentification>
+            <citation>
+                <CI_Citation>
+                    <title>
+                        <gco:CharacterString>Tax Parcel Data</gco:CharacterString>
+                    </title>
+                    <date gco:nilReason="missing"/>
+                </CI_Citation>
+            </citation>
+            <abstract>
+                <gco:CharacterString>This data provides the geographic location for parcel boundary lines within the jurisdiction of the Carteret County, NC and is based on recorded surveys and deeds.  This dataset is maintained by the Carteret County Mapping/Land Records Division.  Data is updated on an as needed basis. The description for each field name in the layer is included below:PIN: first 8 digits of PIN15; this would include the MAPNUM, SUBMAP, and BLOCKMAPNUM: first 4 digits of PIN15BLOCK: two digit block number found on old mylars; also digits number 7 and 8 of the PIN15PDOT: part of the PIN15; digits number 9-12 (before the last 3 digits of the PIN15)MAPNAM: first 6 digits of PIN15 map and submapAll fields above are parts of the PIN15 (primary parcel identifier), which is determined by the location of the centroid of a parcel within the State Plane NC Grid SystemCONDO_: condo unit number and also the last 3 digits of the PIN15MOTHER: if a parcel was split from another parcel, the new parcel number would be considered the child and the original would be considered the parent or motherPRID: old parcel number style based on prior mapping system before NC Grid system mapsPIN15: the primary tax parcel identifierWHAT: acreage calculated within ArcGISDeedDate_2: unused fieldOWNER: tax parcel ownerDBOOK: deed book containing most recent deed to propertyDPAGE: deed page containing most recent deed to propertyDDATE: most recent deed date for propertySALE_PRICE: recorded sale priceLAND_VALUE: value of land on propertySTRUC_VAL: value of structure(s) on propertyOTHER_VAL: other value of the propertyBLT_CONDO: year condo was builtMAIL_APT: property owner mailing address unitMAIL_HOUSE: property owner mailing address house numberMAIL_DIR: property owner mailing address street directionalMAIL_ST: property owner mailing address street nameMAIL_STTYP: property owner mailing address street suffix (e.g. Dr., St. etc.)MAIL_CITY: mailing address cityMAIL_STATE: mailing address stateMAIL_ZI4: mailing address zip +4MAIL_ZI5: mailing address zip codeMAIL_ADD2: mailing address additional part (e.g. P.O. Box)TOWNSHIP: township codeCITY_LIMIT: the city limit that the parcel is withinNBHD: Neighborhood codeFIRE_DIST: fire district that the parcel is withinRESCUE_DST: rescue district that the parcel is withinLEGAL_DSC: legal descriptionTOTAL_ACR: total deeded acreageY_BLT_HOUS: year house was builtTOT_SQ_FT: total square footage of structure on propertyROLL_TYPE: roll type of property (regularly taxed property or tax-exempt)BATHROOMS: number of bathroomsBEDROOMS: number of bedroomsSITE_HOUSE: site address house numberSITE_ST: site address street nameSITE_DIR: site address street directionalSITE_STTYP: site address street suffix (e.g. Dr., St., etc.)SITE_APTNO: site address unitSITE_CITY: site address city/communityExpr1: old deed date field; not usedTotal_EMV: total estimated tax valueUse_Val: plat book containing survey of propertyDef_Val: plat page containing survey of propertyMAIL_APT_N: mailing address unit (not used)CONDO_SQFT: condo unit square footageDistrict: district code (indicates the community)CONDO_NUM: condo number of floorsTowns_Desc: township nameTrue_City: true city Use_code: land use codeUse_desc: land use descriptionPerm_N1: permit #1Perm_N2: permit #2Perm_Ty1: permit #1 typePerm_Ty2: permit #2 typePerm_De1: permit #1 descriptionPerm_De2: permit #2 descriptionPerm_Is1: permit #1 issue datePerm_Is2: permit #2 issue dateSCH_Dat1: permit #1 scheduled completion dateSCH_Dat2: permit #2 scheduled completion dateACTL_DA1: permit #1 actual completion date ACTL_DA2: permit #2 actual completion dateFondTyp1: foundation type 1FondDes1: foundation type 1 descriptionFondTyp2: foundation type 2FondDes2: foundation type 2 descriptionExWllTyp1: exterior wall type 1ExWllDes1: exterior wall type 1 descriptionExWllTyp2: exterior wall type 2ExWllDes2: exterior wall type 2 descriptionHeatTyp1: heating type 1HeatDes1: heating type 1 descriptionHeatTyp2: heating type 2HeatDes2: heating type 2 descriptionFlrTyp1: flooring type 1FlrDes1: flooring type 1 descriptionFlrTyp2: flooring type 2FlrDes2: flooring type 2 descriptionCondCod: condition codeCondDes: condition descriptionRStrTyp1: roof structure type 1RStrDes: roof structure type 1 descriptionRStrTyp2: roof structure type 2RStrDes2: roof structure type 2 descriptionRCovTyp1: roof covering type 1RCovDes1: roof covering type 1 descriptionRCovTyp2: roof covering type 2RCovDes2: roof covering type 2 descriptionaicuz: stands for &amp;quot;Air Installation Compatible Use Zone&amp;quot;; planning zones pertaining to military air bases and the surrounding real estateRisk_level: risk level for military air plane accident potential within the AICUZ zonesNoise_lvl: noise level zones surrounding military air basesHtdSqFt: heated square footage of structure on the property</gco:CharacterString>
+            </abstract>
+            <purpose>
+                <gco:CharacterString>Parcel boundary lines for Carteret County, NC</gco:CharacterString>
+            </purpose>
+            <credit>
+                <gco:CharacterString>Carteret County Information Technology Department- GIS Division, Carteret County Tax Department</gco:CharacterString>
+            </credit>
+            <descriptiveKeywords>
+                <MD_Keywords>
+                    <keyword>
+                        <gco:CharacterString>Tax parcels</gco:CharacterString>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>Carteret County</gco:CharacterString>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>boundary</gco:CharacterString>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>government</gco:CharacterString>
+                    </keyword>
+                </MD_Keywords>
+            </descriptiveKeywords>
+            <resourceConstraints>
+                <MD_Constraints>
+                    <useLimitation>
+                        <gco:CharacterString>GIS Terms &amp; Conditions</gco:CharacterString>
+                    </useLimitation>
+                </MD_Constraints>
+            </resourceConstraints>
+            <language gco:nilReason="missing"/>
+            <characterSet>
+                <MD_CharacterSetCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#MD_CharacterSetCode" codeListValue="utf8" codeSpace="ISOTC211/19115">utf8</MD_CharacterSetCode>
+            </characterSet>
+        </MD_DataIdentification>
+    </identificationInfo>
+    <distributionInfo>
+        <MD_Distribution>
+            <transferOptions>
+                <MD_DigitalTransferOptions>
+                    <onLine>
+                        <CI_OnlineResource>
+                            <linkage>
+                                <URL>https://arcgisweb.carteretcountync.gov/arcgis/rest/services/Feature_Services/Parceldata/FeatureServer</URL>
+                            </linkage>
+                        </CI_OnlineResource>
+                    </onLine>
+                </MD_DigitalTransferOptions>
+            </transferOptions>
+        </MD_Distribution>
+    </distributionInfo>
+</MD_Metadata>

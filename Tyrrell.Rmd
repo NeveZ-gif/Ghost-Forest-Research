@@ -1,0 +1,240 @@
+---
+title: "Tyrrell"
+author: "Tianyu Zhang"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    keep_md: yes
+    toc: yes
+    theme: flatly
+    toc_float: yes
+    code_folding: hide
+    number_sections: no
+---
+
+<style>
+.kable thead tr th, .table thead tr th {
+  text-align: left !important;}
+table.kable, table.table {
+  width: 100% !important;}
+  body {
+  line-height: 1.6;
+  font-size: 16px
+}
+</style>
+
+# Load Data
+
+```{r}
+if(!require(pacman)){install.packages("pacman"); library(pacman)}
+p_load(tidyverse, sf, ggplot2, units)
+
+setwd("C:/Users/ztyuu/Documents/Spring2024/Research/Ghost Forest")
+
+Tyrrell.sf <- st_read("Tyrrell_TyrrellParcelViewer/TaxParcel.shp")
+```
+
+# Processing Parcel Records
+
+## Eliminating NAs
+
+Five pin = NA records are found, they are associated with no useful information, hence removed from the data.
+
+```{r remove NA}
+Tyrrell.sf <- filter(Tyrrell.sf, !is.na(pin))
+```
+
+# Check for Duplicates based on pin
+
+```{r check pin duplicates}
+#T.geo.asdf <- Tyrrell.sf %>%
+  #as_tibble()%>%
+  #group_by(geometry) %>% 
+  #tally() %>% 
+  #filter(n>1) %>% 
+  #select(-n) %>% 
+  #inner_join(Tyrrell.sf, by = "geometry")
+
+T.pin.asdf <- Tyrrell.sf %>%
+  as_tibble()%>%
+  group_by(pin) %>% 
+  tally() %>% 
+  filter(n>1) %>% 
+  select(-n) %>% 
+  inner_join(Tyrrell.sf, by = "pin")
+
+#T.asdf <- T.geo.asdf %>% 
+  #full_join(T.pin.asdf) #used this step to confirm all geographical duplicates are encompassed by pin duplicates
+```
+
+## Check for real *geographic* duplicates
+
+All geographical duplicates are encompassed by pin duplicates. Several hundreds of real geographic duplicates are attributed by multiple cards assigned to the same parcel (unique feature of Tyrrell). I took the following steps to clean up the real geographic duplicates.
+
+- Clean up duplicated cards: there are duplications of same card ID under the same Pin, cleaning such values avoid double counting.
+
+- Identify unique, non-duplicated cards.
+
+- Then, binding the two sets of data together to obtain complete, non-duplicated cards associated with each parcel.
+
+### Cleaning up duplicated cards assigned to same *geographic* unit
+
+```{r}
+#filter duplicated cards
+T.realdups.1 <- T.pin.asdf %>% 
+  as_tibble()%>%
+  group_by(geometry, card) %>% 
+  tally() %>% 
+  filter(n>1) %>%
+  inner_join(Tyrrell.sf, by = c("geometry", "card")) %>% 
+  select(-n)
+
+T.realdups.1 <- T.realdups.1 %>% 
+  mutate(masterreco = as.numeric(masterreco)) %>% 
+  filter(masterreco >= 0) #per Parcel Viewer, treat records with positive "masterreco" as the in-use data
+
+#double checking if positive masterreco yields all unique data
+#two duplicated parcels are further removed
+T.realdups.1remove <- T.realdups.1 %>% 
+  group_by(geometry, card) %>% 
+  tally() %>% 
+  filter(n>1) %>% 
+  left_join(Tyrrell.sf) %>% 
+  filter(landvaluep == 45000) #remove non-matching values based on Parcel Viewer
+
+T.realdups.1 <- T.realdups.1 %>% 
+  anti_join(T.realdups.1remove)
+```
+### Identifying unique cards assigned to same *geographic* unit
+
+```{r}
+#filter non-duplicated cards
+T.realdups.2 <- T.pin.asdf %>% 
+  as_tibble()%>%
+  group_by(geometry, card) %>% 
+  tally() %>% 
+  filter(n == 1) %>% 
+  select(-n) %>%
+  inner_join(Tyrrell.sf, by = c("geometry", "card"))
+```
+
+### Binding cleaned cards and extracting parcel-consistent info
+
+Tyrrell county dataset contains parcel-level and card-level data. For the sake of this analysis, we extracted parcel-level data to keep consistent with other counties. 
+
+- Variables "landvaluep", "bldgvaluep" and "obldgvalue" are the relevant parcel-level value info. They are the same across cards.
+
+- Variables "name1" (owner1), "name2" (owner2), "address", "city", "st" and "zip" are the relevant parcel-level ownership info. They are the same across cards.
+
+Since these information are consistent across cards, I used distinct() to extract each parcel ONCE. Essentially, each parcel record is unique in the new dataset. Hence assigned Duped_Value = 0 to the parcels.
+
+```{r}
+#extracting parcel-level consistent info
+T.realdups <- T.realdups.1 %>% 
+  full_join(T.realdups.2) %>% 
+  distinct(geometry, .keep_all = TRUE) %>% 
+  mutate(Duped_Value = 0)
+```
+# Check for unique records based on pin
+
+```{r}
+T.unique <- Tyrrell.sf %>%
+  as_tibble()%>%
+  group_by(pin) %>% 
+  tally() %>% 
+  filter(n == 1) %>% 
+  select(-n) %>% 
+  inner_join(Tyrrell.sf, by = "pin") %>% 
+  mutate(Duped_Value = 0)
+
+#double check if geometry is duplicated - No
+#T.unique.pin.asdf <- T.unique.pin %>% 
+  #group_by(geometry) %>%
+  #tally() %>% 
+  #filter(n>1)
+```
+
+# Processing Master Shapefile
+
+```{r}
+TyrrellMaster <- rbind(T.unique, T.realdups) %>% 
+  st_as_sf()
+```
+
+```{r}
+TyrrellMaster <- TyrrellMaster %>%
+  select(pin, name1, name2, address, city, st, zip,
+         landvaluep, bldgvaluep, obldgvalue, Duped_Value) %>% 
+  rename(PIN = pin,
+         Owner1 = name1, Owner2 = name2,
+         Land_Val = landvaluep, Struc_Val = bldgvaluep, Other_Val = obldgvalue,
+         Mail_St = address, Mail_City = city, Mail_State = st,
+         Mail_ZIP = zip) %>% 
+  mutate(PIN = as.character(PIN), 
+         Land_Val = as.numeric(Land_Val),
+         Struc_Val = as.numeric(Struc_Val),
+         Other_Val = as.numeric(Other_Val),
+         Total_Val = Land_Val + Struc_Val + Other_Val,
+         Acres = st_area(.),
+         Acres = set_units(x = Acres, value = "acres"),
+         Mail_ZIP = as.character(Mail_ZIP),
+         Parcel_County = "Tyrrell",
+         ID = row_number(),
+         ID = paste0("T", sprintf("%05d", ID)))
+```
+
+Writing the final shapefile:
+
+```{r}
+if (file.exists("TyrrellMaster.shp")) {
+  file.remove("TyrrellMaster.shp")
+}
+st_write(TyrrellMaster, "TyrrellMaster.shp", delete.dsn = TRUE)
+```
+
+# Special note for Tyrrell data availability
+
+Upon further inspection, it is found that these are not the only incidents of mismatch between the downloadable dataset and the Parcel Viewer. We decided to retain the dataset records, primarily for the fact that it contains more information than the Parcel Viewer, and an inability to conduct parcel-to-parcel review. 
+
+The following process provides a case where such mismatch occurred, providing further opportunity to improve the study given better data availability in the future.
+
+## Identifying Wrong PINs
+
+In the current dataset, three parcels are associated with wrong PINs.
+
+- Parcel PIN8709332820: the Parvel Viewer PIN is 8709359122 (larger polygon) and 8709333689 (smaller polygon), respectively. 
+
+There are mismatches between dataset record vs. Parcel Viewer suggested information. This includes for 8709359122 (larger polygon), the actual land and parcel (total) value is 91,843, whereas the dataset records 91,392. The ownership is registered under PEARCE JOSEPH LOGAN instead of HILL W M SR & HATTIE ESTATE.
+
+For 8709333689 (smaller polygon), the actual land and parcel (total) value is 76,685, whereas the dataset records 91,392. The ownership is registered under LOVING SHARON B instead of HILL W M SR & HATTIE ESTATE.
+
+- Parcel PIN8709359122: the Parvel Viewer PIN is 8709332820. The value and ownership information associated with the parcel is correct.
+
+```{r identifying wrong pins}
+PIN8709332820 <- Tyrrell.sf %>% 
+  filter(pin == 8709332820) %>% 
+  mutate(Acres = st_area(.),
+         Acres = set_units(x = Acres, value = "acres"))
+
+PIN8709332820L <- PIN8709332820[which.max(PIN8709332820$Acres), ]
+
+PIN8709332820S <- PIN8709332820[which.min(PIN8709332820$Acres), ]
+
+ggplot() +
+  geom_sf(data = PIN8709332820 %>% st_as_sf(), color = "black")
+
+ggplot() +
+  geom_sf(data = PIN8709332820S %>% st_as_sf(), color = "black")
+
+#
+PIN8709359122 <- Tyrrell.sf %>% 
+  filter(pin == 8709359122)
+
+ggplot() +
+  geom_sf(data = PIN8709359122 %>% st_as_sf(), color = "black")
+
+#one parcel under PIN 8709332820 has correct PIN listed as 8709333689 according to Tyrrell Parcel Viewer. This PIN is not duplicated with any other parcels.
+
+#PIN8709333689 <- Tyrrell.sf %>% 
+  #filter(pin == 8709333689) #yields zero observation
+```
